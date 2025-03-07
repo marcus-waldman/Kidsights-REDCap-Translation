@@ -2,7 +2,10 @@ rm(list = ls())
 
 # Load require libraries
 library(tidyverse)
-library(rjson)
+library(jsonlite)
+library(stringr)
+library(readxl)
+library(raster)
 
 # Source utility functions
 source("utils/utils.R")
@@ -10,7 +13,7 @@ source("utils/utils.R")
 # Define working directories (NOTE THIS IS MACHINE SPECIFIC)
 wds = list(
   root = "C:/Users/marcu/Dropbox/GitKraken/white-rhino/repositories/Kidsights-REDCap-Translation", 
-  onedrive = "C:/Users/marcu/OneDrive - University of Nebraska Medical Center/Documents - Kidsights Data/General",
+  onedrive = "C:/Users/marcu/OneDrive - University of Nebraska Medical Center/Documents - Kidsights Data/General"
 )
 
 
@@ -36,3 +39,42 @@ file.copy(
                   ),
   to = file.path(wds$root,"tmp")
 )
+
+# Read in the REDCap .json MLM file
+es_json = jsonlite::read_json(file.path("tmp","REDCapTranslation_es_pid7679_20250306-132047.json"))
+
+
+# Read in the Modules.xlsx, construting a list of data frames (VERIFY EACH TIME)
+mfile = file.path("tmp","KidsightsData_RedCap_Modules_v0_00.xlsx")
+modules = list(
+  `Module 00` = readxl::read_xlsx(path = mfile, sheet = "Module 00", range = "B4:M9"),
+  `Module 0` = NULL,
+  `Module 1` = readxl::read_xlsx(path = mfile, sheet = "Module 1", range = "A3:L10"),
+  `Module 2` = readxl::read_xlsx(path = mfile, sheet = "Module 2", range = "A3:K58"), 
+  `Module 3` = readxl::read_xlsx(path = mfile, sheet = "Module 3", range = "A3:K46"),
+  `Module 4` = readxl::read_xlsx(path = mfile, sheet = "Module 4", range = "A3:K30"),
+  `Module 5` = readxl::read_xlsx(path = mfile, sheet = "Module 5", range = "A5:H6"),
+  `Module 6` = readxl::read_xlsx(path = mfile, sheet = "Module 6", range = "A7:K235"),
+  `Module 7` = readxl::read_xlsx(path = mfile, sheet = "Module 7", range = "A3:I49"), 
+  `Module 8` = readxl::read_xlsx(path = mfile, sheet = "Module 8", range = "A2:K5"), 
+  `Module 9` = readxl::read_xlsx(path = mfile, sheet = "Module 9", range = "A7:I13")
+)
+
+
+# Read in the Spanish version
+es_xlsx = readxl::read_xlsx(path = file.path("tmp","SPANISH TRANSLATION_Nebraska Child Development Study- Phase 2 SURVEY-EN-ES-ES.xlsx"))
+es_list = list(
+  stems = es_xlsx %>% dplyr::filter(endsWith(PhraseID, "QuestionText")), 
+  resp_opts = es_xlsx %>% dplyr::filter(stringr::str_detect(PhraseID,"_Choice")) %>%
+    na.omit() %>% 
+    dplyr::group_by(EN) %>% 
+    dplyr::summarise(ES = names(which.max(table(`ES-ES`))))
+)
+
+
+
+### Part 1: Let's subsitute response options
+for(m in 1:length(modules)){
+  if(!is.null(modules[[m]])){modules[[m]] = translate_options(df = modules[[m]], translations = es_list, lang = "ES")}
+}
+
