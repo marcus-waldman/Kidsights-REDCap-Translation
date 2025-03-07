@@ -6,6 +6,9 @@ library(jsonlite)
 library(stringr)
 library(readxl)
 library(raster)
+library(text2vec)
+library(tm)
+library(pbapply)
 
 # Source utility functions
 source("utils/utils.R")
@@ -63,8 +66,15 @@ modules = list(
 
 # Read in the Spanish version
 es_xlsx = readxl::read_xlsx(path = file.path("tmp","SPANISH TRANSLATION_Nebraska Child Development Study- Phase 2 SURVEY-EN-ES-ES.xlsx"))
-es_list = list(
-  stems = es_xlsx %>% dplyr::filter(endsWith(PhraseID, "QuestionText")), 
+es_translations = list(
+  stems = es_xlsx %>% 
+    dplyr::filter(endsWith(PhraseID, "QuestionText")) %>% 
+    dplyr::group_by(PhraseID) %>% 
+    dplyr::reframe(EN = EN %>% clean_stems(), ES = `ES-ES`) %>% 
+    dplyr::ungroup() %>% 
+    na.omit() %>% 
+    dplyr::group_by(EN) %>% 
+    dplyr::summarise(ES = ES[1] %>% clean_stems()),
   resp_opts = es_xlsx %>% dplyr::filter(stringr::str_detect(PhraseID,"_Choice")) %>%
     na.omit() %>% 
     dplyr::group_by(EN) %>% 
@@ -75,6 +85,14 @@ es_list = list(
 
 ### Part 1: Let's subsitute response options
 for(m in 1:length(modules)){
-  if(!is.null(modules[[m]])){modules[[m]] = translate_options(df = modules[[m]], translations = es_list, lang = "ES")}
+  if(!is.null(modules[[m]])){modules[[m]] = translate_options(df = modules[[m]], translations = es_translations, lang = "ES")}
 }
+
+## Part 2: Let's translate the stems
+for(m in 1:length(modules)){
+  if(!is.null(modules[[m]])){modules[[m]] = translate_stems(df = modules[[m]], translations = es_translations, lang = "ES")}
+}
+
+
+
 
