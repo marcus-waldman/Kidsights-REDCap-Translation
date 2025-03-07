@@ -5,6 +5,7 @@ library(tidyverse)
 library(jsonlite)
 library(stringr)
 library(readxl)
+library(xlsx)
 library(raster)
 library(text2vec)
 library(tm)
@@ -93,6 +94,16 @@ for(m in 1:length(modules)){
   if(!is.null(modules[[m]])){modules[[m]] = translate_stems(df = modules[[m]], translations = es_translations, lang = "ES")}
 }
 
+### Create a translations tab in the existing spreadsheet
+ES_sheet = lapply(1:length(modules), function(m){
+  
+  if(is.null(modules[[m]])){return(NULL)}
+  
+  return(modules[[m]] %>% dplyr::mutate(module = names(modules)[m]) %>% dplyr::select(module, lex_ne25, dplyr::starts_with("ES_")) %>% dplyr::relocate(module, lex_ne25, dplyr::ends_with("stem")))
+  
+}) %>% dplyr::bind_rows()
 
+## let's write out
+xlsx::write.xlsx(ES_sheet, mfile, sheetName = "ES Translation", append = T)
 
 
