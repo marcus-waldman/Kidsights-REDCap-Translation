@@ -11,9 +11,6 @@ library(text2vec)
 library(tm)
 library(pbapply)
 
-# Source utility functions
-source("utils/utils.R")
-
 # Define working directories (NOTE THIS IS MACHINE SPECIFIC)
   #wds = list(
   #  root = "C:/Users/marcu/Dropbox/GitKraken/white-rhino/repositories/Kidsights-REDCap-Translation", 
@@ -27,6 +24,9 @@ source("utils/utils.R")
 
 
 setwd(wds$root)
+
+# Source utility functions
+source("utils/utils.R")
 
 # Construct a temporary directory and make copies of flat/JSON files 
 if(!dir.exists("tmp")){dir.create("tmp")}
@@ -111,7 +111,7 @@ es_json = jsonlite::read_json(file.path("tmp","REDCapTranslation_es_pid7679_2025
 # ## let's write out
 # xlsx::write.xlsx(ES_sheet, mfile, sheetName = "ES Translation", append = T)
 
-### Part 3 ###
+### Part 4: Append and export the JSON-file ###
 ES_sheet = readxl::read_xlsx(path = "tmp/KidsightsData_RedCap_Modules_v0_00.xlsx", sheet = "ES Translation") %>% 
   dplyr::filter(!is.na(lex_ne25)) %>% 
   dplyr::mutate(lex_ne25 = tolower(lex_ne25))
@@ -130,7 +130,7 @@ for(i in which(!is.na(translations$ES_stem))){
 }
 
 # Let's add in response options
-#for(i in which(!is.na(translations$ES_stem) & translations$enum_exists & !is.na(translations$ES_num_code))){
+for(i in which(!is.na(translations$ES_stem) & translations$enum_exists & !is.na(translations$ES_num_code))){
   resp_opts_i = translations$ES_num_code[i] %>%   stringr::str_split_1(pattern = ";") %>% stringr::str_squish()
   for(j in 1:length(fieldT[[i]]$enum)){
     u_ij = fieldT[[i]]$enum[[j]]$id
@@ -139,4 +139,37 @@ for(i in which(!is.na(translations$ES_stem))){
       fieldT[[i]]$enum[[jj]]$translation = stringr::str_remove_all(resp_opts_i[jj], paste0(u_ij," = "))
     }
   }
-#}
+}
+
+es_json$fieldTranslations = fieldT
+jsonlite::write_json(es_json, path = "tmp/REDCapTranslation_es_pid7679_20250306-132047-ES.json", pretty = T)
+
+
+# Note that "don't know" was set to 9 and not -9
+# "id": ["c122"],
+# "form": ["module_6_549_731"],
+# "label": {
+#   "hash": ["9ebe818dda"],
+#   "translation": ["¿Su niño/niña puede nombrar al menos un color (p. ej., rojo, azul o amarillo)?"]
+# },
+# "note": {
+#   "hash": ["92b794adef"],
+#   "translation": [""]
+# },
+# "enum": [
+#   {
+#     "id": [1],
+#     "hash": ["5397e0583f"],
+#     "translation": ["Sí"]
+#   },
+#   {
+#     "id": [0],
+#     "hash": ["816c52fd2b"],
+#     "translation": ["No"]
+#   },
+#   {
+#     "id": [9],
+#     "hash": ["6953dc95d5"],
+#     "translation": [""]
+#   }
+# ]
