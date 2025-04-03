@@ -38,7 +38,7 @@ file.copy(
 )
 file.copy(
   from = file.path(wds$onedrive,
-                   "Phase 3/Survey Platform/Kidsights-RedCap/kidsights-redcap-v0_00/KidsightsData_RedCap_Modules_v0_00.xlsx"
+                   "Phase 3/Survey Platform/Kidsights-RedCap/kidsights-redcap-v0_00/KidsightsData_RedCap_Modules_vLF.3.24.25.xlsx"
   ), 
   to = file.path(wds$root,"tmp")
 )
@@ -48,10 +48,6 @@ file.copy(
                   ),
   to = file.path(wds$root,"tmp")
 )
-
-# Read in the REDCap .json MLM file
-es_json = jsonlite::read_json(file.path("tmp","REDCapTranslation_es_pid7679_20250306-132047.json"))
-
 
 # # Read in the Modules.xlsx, construting a list of data frames (VERIFY EACH TIME)
 # mfile = file.path("tmp","KidsightsData_RedCap_Modules_v0_00.xlsx")
@@ -112,18 +108,49 @@ es_json = jsonlite::read_json(file.path("tmp","REDCapTranslation_es_pid7679_2025
 # xlsx::write.xlsx(ES_sheet, mfile, sheetName = "ES Translation", append = T)
 
 ### Part 4: Append and export the JSON-file ###
-ES_sheet = readxl::read_xlsx(path = "tmp/KidsightsData_RedCap_Modules_v0_00.xlsx", sheet = "ES Translation") %>% 
+
+jsons = list.files(path = "tmp", pattern = ".json")
+
+
+x = 1
+# Read in the REDCap .json MLM file
+es_json = jsonlite::read_json(file.path("tmp",jsons[x]))
+
+
+ES_sheet = readxl::read_xlsx(path = "tmp/KidsightsData_RedCap_Modules_vLF.3.24.25.xlsx", sheet = "ES Translation") %>% 
   dplyr::filter(!is.na(lex_ne25)) %>% 
   dplyr::mutate(lex_ne25 = tolower(lex_ne25))
 
 fieldT = es_json$fieldTranslations
 translations = pbapply::pblapply(1:length(fieldT), function(i){
-  data.frame(lex_ne25 = fieldT[[i]]$id, enum_exists = "enum" %in% names(fieldT[[i]]))}
+  
+      enum_code = NULL
+      enum_exists = "enum" %in% names(fieldT[[i]])
+      if(enum_exists){
+        for(j in 1:length(fieldT[[i]]$enum) ){
+          enum_code = c(enum_code, paste0(fieldT[[i]]$enum[[j]]$id, " = ", fieldT[[i]]$enum[[j]]$default))
+        }
+        enum_code = paste(enum_code, collapse = ", ")
+      } else {
+        enum_code = ""
+      }
+      label_exists = ifelse("label" %in% names(fieldT[[i]]), ifelse("default" %in% names(fieldT[[i]]$label), T, F), F)
+      if(label_exists){
+        label = fieldT[[i]]$label$default
+      } else {
+        label = ""
+      }
+      return(data.frame(module = fieldT[[i]]$form, lex_ne25 = fieldT[[i]]$id, stem = label, enum_exists = enum_exists, enum_code = enum_code))
+      
+  }
 ) %>% dplyr::bind_rows()
 
 translations = translations %>% 
-  dplyr::left_join(ES_sheet %>% dplyr::select(lex_ne25,ES_stem,ES_num_code), by = "lex_ne25")
+  dplyr::left_join(ES_sheet %>% dplyr::select(lex_ne25,ES_stem,ES_num_code), by = "lex_ne25") %>% 
+  dplyr::rename(ES_enum_code = ES_num_code)
 
+
+#write.xlsx(translations, file = "tmp/porting-translation.xlsx")
 # Let's add in the translated labels/stems
 for(i in which(!is.na(translations$ES_stem))){
   fieldT[[i]]$label$translation = translations$ES_stem[i]
