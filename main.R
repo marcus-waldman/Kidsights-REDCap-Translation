@@ -38,7 +38,7 @@ file.copy(
 )
 file.copy(
   from = file.path(wds$onedrive,
-                   "Phase 3/Survey Platform/Kidsights-RedCap/kidsights-redcap-v0_00/KidsightsData_RedCap_Modules_vLF.3.24.25.xlsx"
+                   "Phase 3/Survey Platform/Kidsights-RedCap/SPANISH KidsightsData_RedCap_Modules_v2.April 4.xlsx"
   ), 
   to = file.path(wds$root,"tmp")
 )
@@ -117,7 +117,7 @@ x = 1
 es_json = jsonlite::read_json(file.path("tmp",jsons[x]))
 
 
-ES_sheet = readxl::read_xlsx(path = "tmp/KidsightsData_RedCap_Modules_vLF.3.24.25.xlsx", sheet = "ES Translation") %>% 
+ES_sheet = readxl::read_xlsx(path = "tmp/SPANISH KidsightsData_RedCap_Modules_v2.April 4.xlsx", sheet = "ES Translation") %>% 
   dplyr::filter(!is.na(lex_ne25)) %>% 
   dplyr::mutate(lex_ne25 = tolower(lex_ne25))
 
@@ -130,7 +130,7 @@ translations = pbapply::pblapply(1:length(fieldT), function(i){
         for(j in 1:length(fieldT[[i]]$enum) ){
           enum_code = c(enum_code, paste0(fieldT[[i]]$enum[[j]]$id, " = ", fieldT[[i]]$enum[[j]]$default))
         }
-        enum_code = paste(enum_code, collapse = ", ")
+        enum_code = paste(enum_code, collapse = "; ")
       } else {
         enum_code = ""
       }
@@ -150,7 +150,51 @@ translations = translations %>%
   dplyr::rename(ES_enum_code = ES_num_code)
 
 
-#write.xlsx(translations, file = "tmp/porting-translation.xlsx")
+# If there is not an enum_code in english, make blank in spanish
+translations$ES_enum_code[!translations$enum_exists] = NA
+
+# Clean up 9 = "Don't Know" 
+for(i in 1:nrow(translations)){
+  if(stringr::str_detect(translations$enum_code[i], "9") & stringr::str_detect(tolower(translations$enum_code[i]), "know")){
+    print(i)
+    translations$ES_enum_code[i] = stringr::str_replace_all(translations$ES_enum_code[i], "-9", "9")
+  }
+}
+# Clean up 99 = 
+for(i in 1:nrow(translations)){
+  if(stringr::str_detect(translations$enum_code[i], "99 =")){
+    print(i)
+    translations$ES_enum_code[i] = stringr::str_replace_all(translations$ES_enum_code[i], "-99", "99")
+  }
+}
+
+# Transport the html
+i = 214
+if(startsWith(translations$stem[i], "<div class=\"rich-text-field-label\"><p>")){
+  begin_i = stringr::str_locate(translations$stem[i],"<div class=\"rich-text-field-label\"><p>")[2]+1
+  end_i = stringr::str_locate(translations$stem[i],"</p>")[1]-1
+  stem_i = substr(translations$stem[i], begin_i, end_i)
+  ES_stem_i = paste0(
+    substr(translations$stem[i], 1, begin_i-1), 
+    translations$ES_stem[i], 
+    substr(translations$stem[i], end_i+1, stringr::str_length(translations$stem[i]))
+  )
+  translations$ES_stem[i] = ES_stem_i
+}
+
+
+
+# Make all missing and text
+translations[is.na(translations)] = ""
+
+
+# Transfer all text with complete
+translations$ES_enum_code[endsWith(translations$lex_ne25,"_complete")] = translations$enum_code[endsWith(translations$lex_ne25,"_complete")]
+
+write.xlsx(translations %>% dplyr::select(module,lex_ne25, stem,ES_stem,enum_code,ES_enum_code), file = "tmp/porting-translation.xlsx")
+
+
+
 # Let's add in the translated labels/stems
 for(i in which(!is.na(translations$ES_stem))){
   fieldT[[i]]$label$translation = translations$ES_stem[i]
